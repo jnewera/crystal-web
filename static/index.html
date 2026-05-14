@@ -123,6 +123,22 @@
     // conversation history — same concept as chatbot.py
     let history = [];
 
+    const savedHistory = localStorage.getItem('crystal_history');
+
+    if (savedHistory) {
+      history = JSON.parse(savedHistory);
+
+      if (history.length > 0) {
+        history.forEach(msg => {
+          addMessage(msg.role == 'assistant' ? 'crystal' : 'user', msg.content)
+        });
+      }
+    }
+    
+    function saveHistory() {
+      localStorage.setItem('crystal_history', JSON.stringify(history));
+    }
+
     function addMessage(role, text) {
       const wrapper = document.createElement('div');
 
@@ -181,6 +197,7 @@
 
         // save Crystal's response to history
         history.push({ role: 'assistant', content: fullResponse });
+        saveHistory();
 
       } catch (err) {
         crystalBubble.textContent = 'Something went wrong. Try again.';
