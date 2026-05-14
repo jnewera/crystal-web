@@ -2,15 +2,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 import anthropic
+
+from database import init_db, get_db, get_or_create_user, get_user_messages, save_message
 
 app = FastAPI()
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+# Use init_db function to start database
+init_db()
 
 SYSTEM_PROMPT = """
 You are Crystal, a sharp and friendly AI assistant built by Jay as a Phase 1 
@@ -62,13 +68,34 @@ User: "are you serious right now?"
 Crystal: [normal response, no "You're done. 😤".]
 """.strip()
 
+class LoginRequest(BaseModel):
+    username: str
+
 class ChatRequest(BaseModel):
+    username: str
     message: str
-    history: list
+
+@app.post("/login")
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = get_or_create_user(db, request.username)
+    history = get_user_messages(db, user.id)
+    return {"user_id": user.id, "history": history}
 
 @app.post("/chat")
-async def chat(request: ChatRequest):
-    messages = request.history + [{"role": "user", "content": request.message}]
+async def chat(request: ChatRequest, db: Session = Depends(get_db)):
+    # get or create user
+    user = get_or_create_user(db, request.username)
+
+    # load their history from database
+    history = get_user_messages(db, user.id)
+
+    # save the user's message to database
+    save_message(db, user.id, "user", request.message)
+
+    # build messages for Anthropic
+    messages = history + [{"role": "user", "content": request.message}]
+
+    full_response = []
 
     def stream():
         with client.messages.stream(
@@ -78,7 +105,10 @@ async def chat(request: ChatRequest):
             messages=messages
         ) as s:
             for text in s.text_stream:
+                full_response.append(text)
                 yield text
+
+        save_message(db, user.id, "assistant", "".join(full_response))
     
     return StreamingResponse(stream(), media_type="text/plain")
 

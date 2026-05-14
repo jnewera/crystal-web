@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crystal</title>
+  <title>Crissybot</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -17,14 +17,83 @@
       align-items: center;
     }
 
+    /* LOGIN SCREEN */
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 16px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    #login-screen h1 {
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    #login-screen p {
+      font-size: 14px;
+      color: #888;
+    }
+
+    #username-input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #f0f0f0;
+      font-size: 15px;
+      outline: none;
+    }
+
+    #username-input:focus { border-color: #555; }
+
+    #login-btn {
+      width: 100%;
+      background: #2a2a5a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #login-btn:hover { background: #3a3a7a; }
+
+    .error { color: #ff6b6b; font-size: 13px; }
+
+    /* CHAT SCREEN */
+    #chat-screen { display: none; flex-direction: column; align-items: center; width: 100%; height: 100vh; }
+
     header {
       width: 100%;
       max-width: 700px;
-      padding: 20px;
-      font-size: 20px;
+      padding: 16px 20px;
+      font-size: 18px;
       font-weight: 600;
       border-bottom: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+
+    #logout-btn {
+      font-size: 12px;
+      color: #888;
+      background: none;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    #logout-btn:hover { color: #fff; border-color: #555; }
 
     #chat-box {
       flex: 1;
@@ -106,39 +175,86 @@
 </head>
 <body>
 
-  <header>💎 Crissy</header>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen">
+    <h1>💎 Crystal</h1>
+    <p>Enter your username to continue</p>
+    <input type="text" id="username-input" placeholder="Username" />
+    <button id="login-btn">Enter</button>
+    <span class="error" id="login-error"></span>
+  </div>
 
-  <div id="chat-box"></div>
-
-  <div id="input-area">
-    <textarea id="user-input" placeholder="Message Crystal..." rows="1"></textarea>
-    <button id="send-btn">Send</button>
+  <!-- CHAT SCREEN -->
+  <div id="chat-screen">
+    <header>
+      <span>💎 Crystal</span>
+      <button id="logout-btn">Leave</button>
+    </header>
+    <div id="chat-box"></div>
+    <div id="input-area">
+      <textarea id="user-input" placeholder="Message Crissy..." rows="1"></textarea>
+      <button id="send-btn">Send</button>
+    </div>
   </div>
 
   <script>
+    // Elements
+    const loginScreen = document.getElementById('login-screen');
+    const chatScreen = document.getElementById('chat-screen');
+    const usernameInput = document.getElementById('username-input');
+    const loginBtn = document.getElementById('login-btn');
+    const loginError = document.getElementById('login-error');
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
+    const logoutBtn = document.getElementById('logout-btn');
 
-    // conversation history — same concept as chatbot.py
+    let currentUsername = '';
     let history = [];
 
-    const savedHistory = localStorage.getItem('crystal_history');
-
-    if (savedHistory) {
-      history = JSON.parse(savedHistory);
-
-      if (history.length > 0) {
-        history.forEach(msg => {
-          addMessage(msg.role == 'assistant' ? 'crystal' : 'user', msg.content)
-        });
+    // ── LOGIN ──
+    async function login() {
+      const username = usernameInput.value.trim();
+      if (!username) {
+        loginError.textContent = 'Please enter a username.';
+        return;
       }
-    }
-    
-    function saveHistory() {
-      localStorage.setItem('crystal_history', JSON.stringify(history));
+
+      loginBtn.disabled = true;
+      loginError.textContent = '';
+
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+
+        const data = await response.json();
+        currentUsername = username;
+        history = data.history;
+
+        // show chat screen
+        loginScreen.style.display = 'none';
+        chatScreen.style.display = 'flex';
+
+        // load existing messages
+        if (history.length > 0) {
+          history.forEach(msg => {
+            addMessage(msg.role === 'assistant' ? 'crystal' : 'user', msg.content);
+          });
+        }
+
+        userInput.focus();
+
+      } catch (err) {
+        loginError.textContent = 'Something went wrong. Try again.';
+      }
+
+      loginBtn.disabled = false;
     }
 
+    // ── ADD MESSAGE TO UI ──
     function addMessage(role, text) {
       const wrapper = document.createElement('div');
 
@@ -159,19 +275,17 @@
       return bubble;
     }
 
+    // ── SEND MESSAGE ──
     async function sendMessage() {
       const message = userInput.value.trim();
       if (!message) return;
 
-      // show user message
       addMessage('user', message);
       userInput.value = '';
       sendBtn.disabled = true;
 
-      // add to history
       history.push({ role: 'user', content: message });
 
-      // create Crystal's bubble to stream into
       const crystalBubble = addMessage('crystal', '');
       let fullResponse = '';
 
@@ -179,13 +293,12 @@
         const response = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, history: history.slice(0, -1) })
+          body: JSON.stringify({ username: currentUsername, message })
         });
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
-        // read the stream chunk by chunk
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -195,9 +308,7 @@
           chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // save Crystal's response to history
         history.push({ role: 'assistant', content: fullResponse });
-        saveHistory();
 
       } catch (err) {
         crystalBubble.textContent = 'Something went wrong. Try again.';
@@ -207,10 +318,25 @@
       userInput.focus();
     }
 
-    // send on button click
+    // ── LOGOUT ──
+    function logout() {
+      currentUsername = '';
+      history = [];
+      chatBox.innerHTML = '';
+      chatScreen.style.display = 'none';
+      loginScreen.style.display = 'flex';
+      usernameInput.value = '';
+    }
+
+    // ── EVENT LISTENERS ──
+    loginBtn.addEventListener('click', login);
+    logoutBtn.addEventListener('click', logout);
     sendBtn.addEventListener('click', sendMessage);
 
-    // send on Enter key (Shift+Enter for new line)
+    usernameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
     userInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
