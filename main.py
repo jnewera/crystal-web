@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import anthropic
 
-from database import init_db, get_db, get_or_create_user, get_user_messages, save_message
+from database import init_db, get_db, get_or_create_user, get_user_messages, save_message, get_all_users, User
 
 app = FastAPI()
 
@@ -74,6 +74,28 @@ class LoginRequest(BaseModel):
 class ChatRequest(BaseModel):
     username: str
     message: str
+
+class AdminLoginRequest(BaseModel):
+     password: str
+
+@app.post("/admin/login")
+def admin_login(request: AdminLoginRequest):
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if request.password == admin_password:
+        return {"success": True}
+    return {"success": False}
+
+@app.get("/admin/users")
+def admin_get_users(db: Session = Depends(get_db)):
+    return get_all_users(db)
+
+@app.get("/admin/users/{username}")
+def admin_get_user_history(username: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return {"error": "User not found"}
+    messages = get_user_messages(db, user.id)
+    return {"username": username, "messages": messages}
 
 @app.post("/login")
 def login(request: LoginRequest, db: Session = Depends(get_db)):

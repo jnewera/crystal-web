@@ -70,3 +70,16 @@ def get_user_messages(db, user_id: str):
         .order_by(Message.created_at)\
         .all()
     return [{"role": m.role, "content": m.content} for m in messages]
+
+# 9. Get all users with their message count
+def get_all_users(db):
+    users = db.query(User).all()
+    result = []
+    for user in users:
+        message_count = db.query(Message).filter(Message.user_id == user.id).count()
+        result.append({
+            "username": user.username,
+            "message_count": message_count,
+            "created_at": str(user.created_at)
+        })
+    return result

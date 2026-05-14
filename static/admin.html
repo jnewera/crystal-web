@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crissybot Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #f0f0f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p.subtitle { color: #888; font-size: 14px; margin-bottom: 24px; }
+
+    /* LOGIN */
+    #admin-login {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 360px;
+    }
+    input {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #f0f0f0;
+      font-size: 15px;
+      outline: none;
+      width: 100%;
+    }
+    input:focus { border-color: #555; }
+    button {
+      background: #2a2a5a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+    }
+    button:hover { background: #3a3a7a; }
+    .error { color: #ff6b6b; font-size: 13px; }
+
+    /* DASHBOARD */
+    #admin-dashboard { display: none; width: 100%; max-width: 800px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #666;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #222;
+    }
+    .user-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .user-card:hover { border-color: #444; }
+    .user-name { font-size: 15px; font-weight: 500; }
+    .user-meta { font-size: 12px; color: #666; margin-top: 3px; }
+    .message-count {
+      font-size: 13px;
+      color: #888;
+      background: #222;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* HISTORY MODAL */
+    #history-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-box {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 { font-size: 16px; }
+    .close-btn {
+      background: none;
+      border: 1px solid #333;
+      color: #888;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      width: auto;
+    }
+    .modal-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 85%;
+      white-space: pre-wrap;
+    }
+    .msg.user {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      align-self: flex-end;
+    }
+    .msg.assistant {
+      background: #111;
+      border: 1px solid #222;
+      align-self: flex-start;
+    }
+    .msg-role {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔐 Admin Panel</h1>
+  <p class="subtitle">Crissybot — internal dashboard</p>
+
+  <!-- LOGIN -->
+  <div id="admin-login">
+    <input type="password" id="password-input" placeholder="Admin password" />
+    <button id="login-btn">Enter</button>
+    <span class="error" id="login-error"></span>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="admin-dashboard">
+    <p class="section-title" id="user-count-label">Users</p>
+    <div id="user-list"></div>
+  </div>
+
+  <!-- HISTORY MODAL -->
+  <div id="history-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="modal-title">Conversation</h2>
+        <button class="close-btn" id="close-modal">Close</button>
+      </div>
+      <div class="modal-messages" id="modal-messages"></div>
+    </div>
+  </div>
+
+  <script>
+    const adminLogin = document.getElementById('admin-login');
+    const dashboard = document.getElementById('admin-dashboard');
+    const passwordInput = document.getElementById('password-input');
+    const loginBtn = document.getElementById('login-btn');
+    const loginError = document.getElementById('login-error');
+    const userList = document.getElementById('user-list');
+    const userCountLabel = document.getElementById('user-count-label');
+    const historyModal = document.getElementById('history-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessages = document.getElementById('modal-messages');
+    const closeModal = document.getElementById('close-modal');
+
+    async function adminLogin_fn() {
+      const password = passwordInput.value.trim();
+      if (!password) return;
+
+      loginBtn.disabled = true;
+      loginError.textContent = '';
+
+      try {
+        const response = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          adminLogin.style.display = 'none';
+          dashboard.style.display = 'block';
+          loadUsers();
+        } else {
+          loginError.textContent = 'Wrong password.';
+        }
+
+      } catch (err) {
+        loginError.textContent = 'Something went wrong.';
+      }
+
+      loginBtn.disabled = false;
+    }
+
+    async function loadUsers() {
+      const response = await fetch('/admin/users');
+      const users = await response.json();
+
+      userCountLabel.textContent = `${users.length} Users`;
+      userList.innerHTML = '';
+
+      users.forEach(user => {
+        const card = document.createElement('div');
+        card.className = 'user-card';
+        card.innerHTML = `
+          <div>
+            <div class="user-name">${user.username}</div>
+            <div class="user-meta">Joined ${user.created_at}</div>
+          </div>
+          <span class="message-count">${user.message_count} messages</span>
+        `;
+        card.addEventListener('click', () => loadHistory(user.username));
+        userList.appendChild(card);
+      });
+    }
+
+    async function loadHistory(username) {
+      const response = await fetch(`/admin/users/${username}`);
+      const data = await response.json();
+
+      modalTitle.textContent = `${username}'s conversation`;
+      modalMessages.innerHTML = '';
+
+      data.messages.forEach(msg => {
+        const wrapper = document.createElement('div');
+        const role = document.createElement('div');
+        role.className = 'msg-role';
+        role.textContent = msg.role === 'assistant' ? 'Crystal' : username;
+        const bubble = document.createElement('div');
+        bubble.className = `msg ${msg.role}`;
+        bubble.textContent = msg.content;
+        wrapper.appendChild(role);
+        wrapper.appendChild(bubble);
+        modalMessages.appendChild(wrapper);
+      });
+
+      historyModal.style.display = 'flex';
+    }
+
+    closeModal.addEventListener('click', () => {
+      historyModal.style.display = 'none';
+    });
+
+    loginBtn.addEventListener('click', adminLogin_fn);
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') adminLogin_fn();
+    });
+  </script>
+
+</body>
+</html>
